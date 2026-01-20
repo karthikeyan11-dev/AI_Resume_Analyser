@@ -65,7 +65,7 @@ const Register = () => {
               <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
-              <span className="font-bold text-xl text-gradient">ResumeAI</span>
+              <span className="font-bold text-xl text-gradient">CareerLens AI</span>
             </Link>
             <h1 className="text-3xl font-bold mb-2">Create your account</h1>
             <p className="text-gray-600">Start analyzing your resume in minutes</p>

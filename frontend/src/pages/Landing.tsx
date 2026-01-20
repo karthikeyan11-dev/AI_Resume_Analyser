@@ -55,7 +55,7 @@ const Landing = () => {
               <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
-              <span className="font-bold text-xl text-gradient">ResumeAI</span>
+              <span className="font-bold text-xl text-gradient">CareerLens AI</span>
             </div>
             <div className="flex items-center gap-4">
               <Link to="/login" className="text-gray-600 hover:text-gray-900 font-medium">
@@ -196,10 +196,10 @@ const Landing = () => {
               <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                 <Sparkles className="w-5 h-5" />
               </div>
-              <span className="font-bold">ResumeAI</span>
+              <span className="font-bold">CareerLens AI</span>
             </div>
             <p className="text-gray-400 text-sm">
-              © 2024 ResumeAI. All rights reserved.
+              © 2024 CareerLens AI. All rights reserved.
             </p>
           </div>
         </div>

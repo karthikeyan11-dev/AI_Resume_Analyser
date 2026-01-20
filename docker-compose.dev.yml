@@ -7,7 +7,7 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: resume-analyzer-db
+    container_name: careerlens-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -26,7 +26,7 @@ services:
   # Redis
   redis:
     image: redis:7-alpine
-    container_name: resume-analyzer-redis
+    container_name: careerlens-redis
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data

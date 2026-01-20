@@ -1,4 +1,4 @@
-# 🚀 AI Resume Analyzer Platform
+# 🚀 CareerLens AI Platform
 
 <div align="center">
 
@@ -106,8 +106,8 @@ This is a **production-grade, interview-ready** full-stack application that leve
 #### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/ai-resume-analyzer.git
-cd ai-resume-analyzer
+git clone https://github.com/yourusername/careerlens-ai.git
+cd careerlens-ai
 ```
 
 #### 2. Backend Setup
@@ -402,7 +402,7 @@ src/
 ## 📁 Project Structure
 
 ```
-ai-resume-analyzer/
+careerlens-ai/
 ├── backend/
 │   ├── prisma/
 │   │   ├── schema.prisma    # Database schema
@@ -502,6 +502,6 @@ This project is licensed under the MIT License.
 
 **Built with ❤️ for the developer community**
 
-[⬆ Back to Top](#-ai-resume-analyzer-platform)
+[⬆ Back to Top](#-careerlens-ai-platform)
 
 </div>

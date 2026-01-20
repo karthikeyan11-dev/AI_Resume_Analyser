@@ -28,7 +28,7 @@ const logger = winston.createLogger({
     winston.format.splat(),
     winston.format.json()
   ),
-  defaultMeta: { service: 'resume-analyzer-api' },
+  defaultMeta: { service: 'careerlens-ai-api' },
   transports: [
     // Error logs to separate file
     new winston.transports.File({

@@ -62,7 +62,7 @@ const Layout = () => {
           <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
             <Sparkles className="w-6 h-6 text-white" />
           </div>
-          <span className="font-bold text-xl text-gradient">ResumeAI</span>
+          <span className="font-bold text-xl text-gradient">CareerLens AI</span>
         </div>
 
         {/* Navigation */}
@@ -128,7 +128,7 @@ const Layout = () => {
             >
               <Menu className="w-6 h-6" />
             </button>
-            <span className="font-bold text-lg text-gradient">ResumeAI</span>
+            <span className="font-bold text-lg text-gradient">CareerLens AI</span>
             <Link to="/profile" className="p-2">
               <User className="w-6 h-6 text-gray-600" />
             </Link>

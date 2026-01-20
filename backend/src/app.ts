@@ -73,7 +73,7 @@ app.use(`/api/${config.apiVersion}`, routes);
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
   res.json({
-    name: 'AI Resume Analyzer API',
+    name: 'CareerLens AI API',
     version: '1.0.0',
     environment: config.env,
     documentation: `/api/${config.apiVersion}/docs`,
