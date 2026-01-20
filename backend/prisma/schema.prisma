@@ -1,0 +1,332 @@
+// Prisma Schema for AI Resume Analyzer Platform
+// This schema defines the complete database structure for the application
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+enum UserRole {
+  CANDIDATE
+  RECRUITER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  passwordHash  String     @map("password_hash")
+  firstName     String     @map("first_name")
+  lastName      String     @map("last_name")
+  role          UserRole   @default(CANDIDATE)
+  status        UserStatus @default(ACTIVE)
+  avatar        String?
+  phone         String?
+  linkedinUrl   String?    @map("linkedin_url")
+  
+  // Timestamps
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  lastLoginAt   DateTime?  @map("last_login_at")
+  
+  // Relations
+  resumes       Resume[]
+  jobs          Job[]
+  refreshTokens RefreshToken[]
+  
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  token       String   @unique
+  userId      String   @map("user_id")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  revokedAt   DateTime? @map("revoked_at")
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// ============================================
+// RESUME & ANALYSIS
+// ============================================
+
+enum ResumeStatus {
+  PENDING
+  PROCESSING
+  ANALYZED
+  FAILED
+}
+
+model Resume {
+  id              String       @id @default(uuid())
+  userId          String       @map("user_id")
+  
+  // File Information
+  fileName        String       @map("file_name")
+  fileUrl         String       @map("file_url")
+  fileSize        Int          @map("file_size")
+  mimeType        String       @map("mime_type")
+  
+  // Extracted Data
+  rawText         String?      @map("raw_text") @db.Text
+  
+  // Processing Status
+  status          ResumeStatus @default(PENDING)
+  processingError String?      @map("processing_error")
+  
+  // Timestamps
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  analyzedAt      DateTime?    @map("analyzed_at")
+  
+  // Relations
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis        ResumeAnalysis?
+  matchScores     MatchScore[]
+  skillGaps       SkillGap[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("resumes")
+}
+
+model ResumeAnalysis {
+  id                String   @id @default(uuid())
+  resumeId          String   @unique @map("resume_id")
+  
+  // Extracted Skills (stored as JSON array)
+  skills            Json     @default("[]")
+  skillsEmbedding   Float[]  @map("skills_embedding")
+  
+  // Experience Summary
+  experienceSummary String?  @map("experience_summary") @db.Text
+  totalYearsExp     Float?   @map("total_years_exp")
+  experienceLevel   String?  @map("experience_level")
+  
+  // Education Summary
+  educationSummary  String?  @map("education_summary") @db.Text
+  highestDegree     String?  @map("highest_degree")
+  
+  // ATS Analysis
+  atsScore          Int      @map("ats_score") @default(0)
+  atsIssues         Json     @default("[]") @map("ats_issues")
+  atsSuggestions    Json     @default("[]") @map("ats_suggestions")
+  
+  // Additional Metadata
+  contactInfo       Json?    @map("contact_info")
+  certifications    Json     @default("[]")
+  languages         Json     @default("[]")
+  summary           String?  @db.Text
+  
+  // Timestamps
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  resume            Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  
+  @@index([atsScore])
+  @@map("resume_analyses")
+}
+
+// ============================================
+// JOB & ANALYSIS
+// ============================================
+
+enum JobStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+model Job {
+  id              String    @id @default(uuid())
+  recruiterId     String    @map("recruiter_id")
+  
+  // Job Details
+  title           String
+  company         String
+  location        String?
+  salary          String?
+  jobType         String?   @map("job_type")
+  description     String    @db.Text
+  
+  // Status
+  status          JobStatus @default(DRAFT)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  publishedAt     DateTime? @map("published_at")
+  closedAt        DateTime? @map("closed_at")
+  
+  // Relations
+  recruiter       User      @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  analysis        JobAnalysis?
+  matchScores     MatchScore[]
+  skillGaps       SkillGap[]
+  
+  @@index([recruiterId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("jobs")
+}
+
+model JobAnalysis {
+  id                  String   @id @default(uuid())
+  jobId               String   @unique @map("job_id")
+  
+  // Required Skills
+  requiredSkills      Json     @default("[]") @map("required_skills")
+  preferredSkills     Json     @default("[]") @map("preferred_skills")
+  skillsEmbedding     Float[]  @map("skills_embedding")
+  
+  // Experience Requirements
+  minExperience       Float?   @map("min_experience")
+  maxExperience       Float?   @map("max_experience")
+  experienceLevel     String?  @map("experience_level")
+  
+  // Education Requirements
+  requiredEducation   String?  @map("required_education")
+  
+  // Keywords for Matching
+  keywords            Json     @default("[]")
+  
+  // Responsibilities & Requirements Summary
+  responsibilities    Json     @default("[]")
+  benefits            Json     @default("[]")
+  
+  // Timestamps
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  job                 Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  @@map("job_analyses")
+}
+
+// ============================================
+// MATCHING & SCORING
+// ============================================
+
+enum MatchStatus {
+  PENDING
+  CALCULATED
+  SHORTLISTED
+  REJECTED
+}
+
+model MatchScore {
+  id                String      @id @default(uuid())
+  resumeId          String      @map("resume_id")
+  jobId             String      @map("job_id")
+  
+  // Scores
+  overallScore      Float       @map("overall_score")
+  skillMatchScore   Float       @map("skill_match_score")
+  experienceScore   Float       @map("experience_score")
+  educationScore    Float       @map("education_score")
+  keywordScore      Float       @map("keyword_score")
+  
+  // Detailed Analysis
+  matchedSkills     Json        @default("[]") @map("matched_skills")
+  missingSkills     Json        @default("[]") @map("missing_skills")
+  matchExplanation  String?     @map("match_explanation") @db.Text
+  
+  // Status
+  status            MatchStatus @default(PENDING)
+  shortlistedAt     DateTime?   @map("shortlisted_at")
+  
+  // Timestamps
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  
+  // Relations
+  resume            Resume      @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  job               Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  @@unique([resumeId, jobId])
+  @@index([resumeId])
+  @@index([jobId])
+  @@index([overallScore])
+  @@index([status])
+  @@map("match_scores")
+}
+
+// ============================================
+// SKILL GAP & RECOMMENDATIONS
+// ============================================
+
+model SkillGap {
+  id                  String   @id @default(uuid())
+  resumeId            String   @map("resume_id")
+  jobId               String   @map("job_id")
+  
+  // Gap Analysis
+  missingSkills       Json     @default("[]") @map("missing_skills")
+  weakSkills          Json     @default("[]") @map("weak_skills")
+  
+  // Recommendations
+  learningPath        Json     @default("[]") @map("learning_path")
+  courseRecommendations Json   @default("[]") @map("course_recommendations")
+  resumeImprovements  Json     @default("[]") @map("resume_improvements")
+  
+  // Priority Ranking
+  priority            Int      @default(0)
+  estimatedTime       String?  @map("estimated_time")
+  
+  // Timestamps
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  resume              Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  job                 Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  @@unique([resumeId, jobId])
+  @@index([resumeId])
+  @@index([jobId])
+  @@map("skill_gaps")
+}
+
+// ============================================
+// ANALYTICS & LOGS
+// ============================================
+
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+  eventType   String   @map("event_type")
+  userId      String?  @map("user_id")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  @@index([eventType])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("analytics_events")
+}
