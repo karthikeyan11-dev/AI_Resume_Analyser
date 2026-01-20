@@ -7,6 +7,29 @@ import { authService } from '../../services/auth.service';
 import prisma from '../../config/database';
 import { ConflictError, UnauthorizedError } from '../../utils/errors';
 
+// Mock Config
+jest.mock('../../config', () => ({
+  config: {
+    jwt: {
+      accessSecret: 'test-access-secret',
+      refreshSecret: 'test-refresh-secret',
+      accessExpiry: '15m',
+      refreshExpiry: '7d',
+    },
+  },
+}));
+
+// Mock Logger
+jest.mock('../../utils/logger', () => ({
+  __esModule: true,
+  default: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  },
+}));
+
 // Mock Prisma
 jest.mock('../../config/database', () => ({
   user: {
