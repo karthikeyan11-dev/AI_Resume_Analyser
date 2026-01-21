@@ -79,6 +79,13 @@ export const resumeApi = {
   reprocess: (id: string) => api.post(`/resumes/${id}/reprocess`),
   
   getTrends: () => api.get('/resumes/trends'),
+  
+  // New: Get full analysis report with all matches and skill gaps
+  getFullReport: (id: string, options?: { refresh?: boolean; skillGaps?: boolean }) =>
+    api.get(`/resumes/${id}/report`, { params: options }),
+  
+  // New: Get processing progress
+  getProgress: (id: string) => api.get(`/resumes/${id}/progress`),
 }
 
 // Job API
@@ -99,6 +106,9 @@ export const jobApi = {
   delete: (id: string) => api.delete(`/jobs/${id}`),
   
   publish: (id: string) => api.post(`/jobs/${id}/publish`),
+  
+  // New: Get all available job roles for skill gap targeting
+  getJobRoles: () => api.get('/jobs/roles'),
 }
 
 // Match API
@@ -118,6 +128,14 @@ export const matchApi = {
   getUserSkillGaps: () => api.get('/matches/skill-gaps'),
   
   getRecommendations: () => api.get('/matches/recommendations'),
+  
+  // New: Get skill gaps for a specific job role (for skill gaps page dropdown)
+  getSkillGapsByRole: (resumeId: string, jobRole: string) =>
+    api.get('/matches/skill-gaps/by-role', { params: { resumeId, jobRole } }),
+  
+  // New: Trigger match calculation for a resume against all active jobs
+  calculateAllMatches: (resumeId: string) =>
+    api.post(`/matches/calculate-all/${resumeId}`),
 }
 
 // Dashboard API
@@ -126,3 +144,4 @@ export const dashboardApi = {
   getRecruiter: () => api.get('/dashboard/recruiter'),
   getAnalytics: () => api.get('/dashboard/analytics'),
 }
+

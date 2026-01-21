@@ -51,7 +51,28 @@ export const config = {
     refreshExpiry: getEnvVar('JWT_REFRESH_EXPIRY', '7d'),
   },
   
-  // Google Gemini Configuration
+  // Groq AI Configuration (LLM inference)
+  groq: {
+    apiKey: getEnvVar('GROQ_API_KEY', ''),
+    model: getEnvVar('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+    fastModel: getEnvVar('GROQ_FAST_MODEL', 'llama-3.1-8b-instant'),
+  },
+  
+  // Embedding Configuration (Groq doesn't provide embeddings)
+  // Priority: Voyage AI > OpenAI > Local (Transformers.js)
+  embedding: {
+    // Voyage AI - Recommended for production
+    voyageApiKey: process.env.VOYAGE_API_KEY || '',
+    voyageModel: getEnvVar('VOYAGE_MODEL', 'voyage-2'),
+    
+    // OpenAI - Fallback option
+    openaiApiKey: process.env.OPENAI_API_KEY || '',
+    openaiModel: getEnvVar('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+    
+    // Local embedding is auto-enabled if no API keys are set
+  },
+  
+  // Legacy Gemini Configuration (kept for reference, deprecated)
   gemini: {
     apiKey: getEnvVar('GEMINI_API_KEY', ''),
     model: getEnvVar('GEMINI_MODEL', 'gemini-1.5-pro'),
@@ -93,8 +114,11 @@ if (config.env === 'production') {
   if (config.jwt.accessSecret === 'dev-access-secret-change-me') {
     throw new Error('JWT secrets must be changed in production!');
   }
-  if (!config.gemini.apiKey) {
-    console.warn('Warning: Gemini API key not configured. AI features will be disabled.');
+  if (!config.groq.apiKey) {
+    console.warn('Warning: Groq API key not configured. AI features will be disabled.');
+  }
+  if (!config.embedding.voyageApiKey && !config.embedding.openaiApiKey) {
+    console.warn('Warning: No embedding API key configured. Using local embeddings (slower).');
   }
 }
 

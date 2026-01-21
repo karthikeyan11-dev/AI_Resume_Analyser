@@ -7,6 +7,7 @@ import Register from './pages/Register'
 import CandidateDashboard from './pages/CandidateDashboard'
 import RecruiterDashboard from './pages/RecruiterDashboard'
 import Resumes from './pages/Resumes'
+import ResumeReport from './pages/ResumeReport'
 import Jobs from './pages/Jobs'
 import JobDetail from './pages/JobDetail'
 import Matches from './pages/Matches'
@@ -76,6 +77,11 @@ function App() {
             <Resumes />
           </ProtectedRoute>
         } />
+        <Route path="resumes/:id/report" element={
+          <ProtectedRoute allowedRoles={['CANDIDATE']}>
+            <ResumeReport />
+          </ProtectedRoute>
+        } />
         <Route path="matches" element={
           <ProtectedRoute allowedRoles={['CANDIDATE']}>
             <Matches />
@@ -115,3 +121,4 @@ function App() {
 }
 
 export default App
+

@@ -95,6 +95,16 @@ export const jobController = {
 
     sendPaginated(res, jobs, Number(page), Number(limit), total);
   }),
+
+  /**
+   * GET /jobs/roles
+   * Get distinct job roles/titles for dropdown selection
+   */
+  getJobRoles: asyncHandler(async (req: Request, res: Response) => {
+    const roles = await jobService.getDistinctJobRoles();
+    sendSuccess(res, roles);
+  }),
 };
 
 export default jobController;
+

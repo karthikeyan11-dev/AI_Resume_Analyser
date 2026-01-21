@@ -1,6 +1,7 @@
 # Backend Dockerfile
 FROM node:20-slim AS builder
 
+# Install build dependencies including OpenSSL
 RUN apt-get update -y && apt-get install -y openssl
 
 WORKDIR /app
@@ -24,7 +25,17 @@ RUN npm run build
 # Production image
 FROM node:20-slim
 
-RUN apt-get update -y && apt-get install -y openssl
+# Install runtime dependencies:
+# - openssl: Required for Prisma
+# - graphicsmagick: Required for pdf2pic (PDF to image conversion)
+# - ghostscript: Required for GraphicsMagick to handle PDFs
+# - poppler-utils: Additional PDF tools
+RUN apt-get update -y && apt-get install -y \
+    openssl \
+    graphicsmagick \
+    ghostscript \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -39,8 +50,8 @@ RUN npx prisma generate
 # Copy built files
 COPY --from=builder /app/dist ./dist
 
-# Create uploads directory
-RUN mkdir -p uploads logs
+# Create uploads directory and temp directory for OCR
+RUN mkdir -p uploads logs uploads/temp_ocr
 
 # Expose port
 EXPOSE 5000
@@ -51,3 +62,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Start the application
 CMD ["node", "dist/app.js"]
+

@@ -1,25 +1,42 @@
 /**
- * OpenAI Service
- * Handles all AI-related operations including:
+ * Groq AI Service
+ * Handles all AI-related operations using Groq API including:
  * - Resume parsing and analysis
  * - Job description analysis
- * - Embeddings generation for semantic matching
  * - Skill gap analysis and recommendations
+ * 
+ * Migrated from Google Gemini to Groq (LLaMA 3.x / Mixtral)
+ * 
+ * Note: Groq does not provide embeddings - use embeddingService for that
  */
 
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 import { config } from '../config';
 import { AIProcessingError } from '../utils/errors';
 import { retryWithBackoff } from '../utils/helpers';
 import logger from '../utils/logger';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: config.openai.apiKey,
-});
+// Initialize Groq client
+let groqClient: Groq | null = null;
 
-// Type definitions for AI responses
-interface ResumeAnalysisResult {
+const initializeGroq = (): void => {
+  if (!config.groq.apiKey) {
+    logger.warn('Groq API key not configured. AI features will be disabled.');
+    return;
+  }
+
+  groqClient = new Groq({
+    apiKey: config.groq.apiKey,
+  });
+
+  logger.info('Groq AI initialized successfully');
+};
+
+// Initialize on module load
+initializeGroq();
+
+// Type definitions for AI responses (preserved from original)
+export interface ResumeAnalysisResult {
   skills: string[];
   experienceSummary: string;
   totalYearsExperience: number;
@@ -40,7 +57,7 @@ interface ResumeAnalysisResult {
   summary: string;
 }
 
-interface JobAnalysisResult {
+export interface JobAnalysisResult {
   requiredSkills: string[];
   preferredSkills: string[];
   minExperience: number;
@@ -52,7 +69,7 @@ interface JobAnalysisResult {
   benefits: string[];
 }
 
-interface SkillGapResult {
+export interface SkillGapResult {
   missingSkills: Array<{
     skill: string;
     importance: 'high' | 'medium' | 'low';
@@ -85,20 +102,32 @@ interface SkillGapResult {
 const SYSTEM_PROMPTS = {
   resumeAnalysis: `You are an expert resume analyzer and ATS (Applicant Tracking System) specialist. 
 Your job is to extract structured information from resumes and provide ATS compatibility scores.
-Always respond with valid JSON. Be thorough but concise.
+Always respond with valid JSON only, no markdown formatting or code blocks.
 Extract skills accurately, including both technical and soft skills.
 Be realistic with ATS scores - consider formatting, keywords, and content quality.`,
 
   jobAnalysis: `You are an expert job description analyzer and HR specialist.
 Your job is to extract structured requirements and expectations from job descriptions.
-Always respond with valid JSON. Be thorough and accurate.
+Always respond with valid JSON only, no markdown formatting or code blocks.
 Distinguish between required and preferred/nice-to-have qualifications.`,
 
   skillGap: `You are a career development expert and learning path advisor.
 Your job is to identify skill gaps between a candidate's profile and job requirements,
 then provide actionable recommendations for improvement.
-Always respond with valid JSON. Be specific and actionable.
+Always respond with valid JSON only, no markdown formatting or code blocks.
 Prioritize recommendations based on job requirements and market demand.`,
+
+  matchExplanation: `You are a professional recruiter providing candidate evaluation summaries. 
+Be concise and objective. Provide clear, actionable insights.`,
+};
+
+/**
+ * Default generation parameters for Groq
+ */
+const DEFAULT_PARAMS = {
+  temperature: 0.3,
+  max_tokens: 4096,
+  top_p: 0.95,
 };
 
 /**
@@ -113,6 +142,12 @@ const parseAIResponse = <T>(response: string, validator?: (data: unknown) => dat
       jsonStr = jsonMatch[1];
     }
     
+    // Clean up any remaining markdown artifacts
+    jsonStr = jsonStr.trim();
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```(?:json)?/, '').replace(/```$/, '');
+    }
+    
     const parsed = JSON.parse(jsonStr.trim());
     
     if (validator && !validator(parsed)) {
@@ -121,18 +156,82 @@ const parseAIResponse = <T>(response: string, validator?: (data: unknown) => dat
     
     return parsed as T;
   } catch (error) {
-    logger.error('Failed to parse AI response:', { response, error });
+    logger.error('Failed to parse AI response:', { response: response.substring(0, 500), error });
     throw new AIProcessingError('Failed to parse AI response');
   }
 };
 
-export const openaiService = {
+/**
+ * Generate content using Groq
+ */
+const generateContent = async (
+  systemPrompt: string,
+  userPrompt: string,
+  options: Partial<typeof DEFAULT_PARAMS> = {}
+): Promise<string> => {
+  if (!groqClient) {
+    throw new AIProcessingError('Groq API not initialized');
+  }
+
+  const params = { ...DEFAULT_PARAMS, ...options };
+
+  const completion = await groqClient.chat.completions.create({
+    model: config.groq.model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: params.temperature,
+    max_tokens: params.max_tokens,
+    top_p: params.top_p,
+    response_format: { type: 'json_object' },
+  });
+
+  const text = completion.choices[0]?.message?.content;
+  
+  if (!text) {
+    throw new AIProcessingError('Empty response from Groq');
+  }
+
+  return text;
+};
+
+/**
+ * Generate text content (non-JSON) using Groq
+ */
+const generateText = async (
+  systemPrompt: string,
+  userPrompt: string,
+  options: Partial<typeof DEFAULT_PARAMS> = {}
+): Promise<string> => {
+  if (!groqClient) {
+    throw new AIProcessingError('Groq API not initialized');
+  }
+
+  const params = { ...DEFAULT_PARAMS, ...options };
+
+  const completion = await groqClient.chat.completions.create({
+    model: config.groq.fastModel, // Use faster model for text generation
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.5,
+    max_tokens: 500,
+    top_p: params.top_p,
+  });
+
+  return completion.choices[0]?.message?.content || '';
+};
+
+// Export service with same interface as geminiService for drop-in replacement
+export const groqService = {
   /**
    * Analyze a resume and extract structured data
    */
   async analyzeResume(resumeText: string): Promise<ResumeAnalysisResult> {
-    if (!config.openai.apiKey) {
-      throw new AIProcessingError('OpenAI API key not configured');
+    if (!config.groq.apiKey) {
+      throw new AIProcessingError('Groq API key not configured');
     }
 
     const prompt = `Analyze the following resume and extract structured information.
@@ -165,18 +264,7 @@ Respond with a JSON object containing:
 Be accurate and thorough. Only include information that can be reasonably extracted or inferred.`;
 
     const result = await retryWithBackoff(async () => {
-      const completion = await openai.chat.completions.create({
-        model: config.openai.model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPTS.resumeAnalysis },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.3, // Lower temperature for more consistent outputs
-        max_tokens: 2000,
-        response_format: { type: 'json_object' },
-      });
-
-      return completion.choices[0]?.message?.content || '';
+      return await generateContent(SYSTEM_PROMPTS.resumeAnalysis, prompt);
     }, 3);
 
     logger.debug('Resume analysis completed');
@@ -187,8 +275,8 @@ Be accurate and thorough. Only include information that can be reasonably extrac
    * Analyze a job description and extract requirements
    */
   async analyzeJobDescription(jobDescription: string, jobTitle: string): Promise<JobAnalysisResult> {
-    if (!config.openai.apiKey) {
-      throw new AIProcessingError('OpenAI API key not configured');
+    if (!config.groq.apiKey) {
+      throw new AIProcessingError('Groq API key not configured');
     }
 
     const prompt = `Analyze the following job description for the position of "${jobTitle}".
@@ -212,46 +300,11 @@ Respond with a JSON object containing:
 Extract information accurately. If something is not specified, use reasonable defaults based on the role.`;
 
     const result = await retryWithBackoff(async () => {
-      const completion = await openai.chat.completions.create({
-        model: config.openai.model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPTS.jobAnalysis },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 1500,
-        response_format: { type: 'json_object' },
-      });
-
-      return completion.choices[0]?.message?.content || '';
+      return await generateContent(SYSTEM_PROMPTS.jobAnalysis, prompt);
     }, 3);
 
     logger.debug('Job analysis completed');
     return parseAIResponse<JobAnalysisResult>(result);
-  },
-
-  /**
-   * Generate embeddings for semantic similarity matching
-   */
-  async generateEmbedding(text: string): Promise<number[]> {
-    if (!config.openai.apiKey) {
-      throw new AIProcessingError('OpenAI API key not configured');
-    }
-
-    // Truncate text if too long (embedding models have limits)
-    const truncatedText = text.slice(0, 8000);
-
-    const result = await retryWithBackoff(async () => {
-      const response = await openai.embeddings.create({
-        model: config.openai.embeddingModel,
-        input: truncatedText,
-      });
-
-      return response.data[0]?.embedding || [];
-    }, 3);
-
-    logger.debug('Embedding generated', { textLength: truncatedText.length });
-    return result;
   },
 
   /**
@@ -263,8 +316,8 @@ Extract information accurately. If something is not specified, use reasonable de
     jobPreferredSkills: string[],
     jobTitle: string
   ): Promise<SkillGapResult> {
-    if (!config.openai.apiKey) {
-      throw new AIProcessingError('OpenAI API key not configured');
+    if (!config.groq.apiKey) {
+      throw new AIProcessingError('Groq API key not configured');
     }
 
     const prompt = `Analyze the skill gap between a candidate and a job opening for "${jobTitle}".
@@ -316,18 +369,7 @@ Respond with a JSON object containing:
 Be realistic and actionable. Prioritize based on job requirements.`;
 
     const result = await retryWithBackoff(async () => {
-      const completion = await openai.chat.completions.create({
-        model: config.openai.model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPTS.skillGap },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.4,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' },
-      });
-
-      return completion.choices[0]?.message?.content || '';
+      return await generateContent(SYSTEM_PROMPTS.skillGap, prompt);
     }, 3);
 
     logger.debug('Skill gap analysis completed');
@@ -344,7 +386,7 @@ Be realistic and actionable. Prioritize based on job requirements.`;
     jobRequirements: string[],
     matchScore: number
   ): Promise<string> {
-    if (!config.openai.apiKey) {
+    if (!config.groq.apiKey) {
       return `Match score: ${matchScore}%. This is an automated match based on skill alignment.`;
     }
 
@@ -361,17 +403,13 @@ MATCH SCORE: ${matchScore}%
 Provide a 2-3 sentence explanation of the match, highlighting key strengths and potential gaps.`;
 
     try {
-      const completion = await openai.chat.completions.create({
-        model: config.openai.model,
-        messages: [
-          { role: 'system', content: 'You are a professional recruiter providing candidate evaluation summaries. Be concise and objective.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.5,
-        max_tokens: 200,
-      });
+      const result = await generateText(
+        SYSTEM_PROMPTS.matchExplanation,
+        prompt,
+        { max_tokens: 300 }
+      );
 
-      return completion.choices[0]?.message?.content || `Match score: ${matchScore}%`;
+      return result.trim() || `Match score: ${matchScore}%`;
     } catch (error) {
       logger.error('Failed to generate match explanation:', { error });
       return `Match score: ${matchScore}%. Analysis based on skill and experience alignment.`;
@@ -379,21 +417,41 @@ Provide a 2-3 sentence explanation of the match, highlighting key strengths and 
   },
 
   /**
-   * Check if OpenAI API is configured and working
+   * Check if Groq API is configured and working
    */
   async healthCheck(): Promise<boolean> {
-    if (!config.openai.apiKey) {
+    if (!config.groq.apiKey) {
       return false;
     }
 
     try {
-      await openai.models.list();
-      return true;
+      if (!groqClient) {
+        initializeGroq();
+      }
+      
+      // Test with a simple prompt
+      const completion = await groqClient!.chat.completions.create({
+        model: config.groq.fastModel,
+        messages: [{ role: 'user', content: 'Respond with: OK' }],
+        max_tokens: 10,
+      });
+      
+      const text = completion.choices[0]?.message?.content || '';
+      return text.includes('OK');
     } catch (error) {
-      logger.error('OpenAI health check failed:', { error });
+      logger.error('Groq health check failed:', { error });
       return false;
     }
   },
+
+  /**
+   * Get the underlying Groq client for advanced usage
+   */
+  getClient(): Groq | null {
+    return groqClient;
+  },
 };
 
-export default openaiService;
+// Export as default and named exports for compatibility
+export const aiService = groqService; // Generic alias
+export default groqService;

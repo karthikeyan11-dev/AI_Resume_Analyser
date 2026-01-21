@@ -1,14 +1,22 @@
 /**
  * Resume Service
  * Handles resume upload, parsing, and analysis operations
+ * 
+ * Updated to use:
+ * - Groq AI for LLM inference (replacing Gemini)
+ * - Embedding service for semantic embeddings
+ * - PDF extraction service with OCR support
+ * - Job progress tracking for real-time UX
  */
 
 import fs from 'fs';
 import path from 'path';
-import pdf from 'pdf-parse';
 import prisma from '../config/database';
 import { cache, cacheKeys } from '../config/redis';
-import { openaiService } from './gemini.service';
+import { groqService } from './groq.service';
+import { embeddingService } from './embedding.service';
+import { pdfExtractionService } from './pdfExtraction.service';
+import { jobProgressService } from './jobProgress.service';
 import { NotFoundError, FileProcessingError } from '../utils/errors';
 import { calculatePagination } from '../utils/response';
 import logger from '../utils/logger';
@@ -64,13 +72,29 @@ export const resumeService = {
   },
 
   /**
-   * Extract text from PDF file
+   * Extract text from PDF file using enhanced extraction service
+   * Supports text PDFs, scanned/image PDFs, and mixed content
    */
-  async extractTextFromPdf(filePath: string): Promise<string> {
+  async extractTextFromPdf(filePath: string): Promise<{ text: string; confidence: number; method: string }> {
     try {
-      const dataBuffer = fs.readFileSync(filePath);
-      const data = await pdf(dataBuffer);
-      return data.text || '';
+      const result = await pdfExtractionService.extractText(filePath, {
+        enableOCR: true,
+        cleanText: true,
+      });
+      
+      if (!result.text || result.text.trim().length < 50) {
+        throw new FileProcessingError('Could not extract sufficient text from resume');
+      }
+      
+      if (result.warnings.length > 0) {
+        logger.warn('PDF extraction warnings:', { warnings: result.warnings });
+      }
+      
+      return {
+        text: result.text,
+        confidence: result.confidence,
+        method: result.method,
+      };
     } catch (error) {
       logger.error('PDF extraction failed:', { filePath, error });
       throw new FileProcessingError('Failed to extract text from PDF');
@@ -80,14 +104,20 @@ export const resumeService = {
   /**
    * Process resume - extract text and analyze with AI
    * This is called by the background job processor
+   * Now includes job progress tracking for real-time UX updates
    */
-  async processResume(resumeId: string): Promise<void> {
+  async processResume(resumeId: string, jobId?: string): Promise<void> {
     const resume = await prisma.resume.findUnique({
       where: { id: resumeId },
     });
 
     if (!resume) {
       throw new NotFoundError('Resume not found');
+    }
+
+    // Initialize progress tracking if job ID provided
+    if (jobId) {
+      await jobProgressService.initializeJob(jobId, resumeId);
     }
 
     try {
@@ -97,8 +127,11 @@ export const resumeService = {
         data: { status: 'PROCESSING' },
       });
 
-      // Extract text from PDF
-      const rawText = await this.extractTextFromPdf(resume.fileUrl);
+      // Stage 1: Extract text from PDF
+      if (jobId) await jobProgressService.updateStage(jobId, 'EXTRACTING', 0);
+      
+      const extraction = await this.extractTextFromPdf(resume.fileUrl);
+      const rawText = extraction.text;
 
       if (!rawText || rawText.trim().length < 50) {
         throw new FileProcessingError('Could not extract sufficient text from resume');
@@ -110,14 +143,29 @@ export const resumeService = {
         data: { rawText },
       });
 
-      // Analyze with AI
-      const analysis = await openaiService.analyzeResume(rawText);
+      if (jobId) await jobProgressService.updateStage(jobId, 'EXTRACTING', 100, {
+        extractionMethod: extraction.method,
+        confidence: extraction.confidence,
+      });
 
-      // Generate skills embedding for matching
+      // Stage 2: Analyze with AI (Groq)
+      if (jobId) await jobProgressService.updateStage(jobId, 'ANALYZING', 0);
+      
+      const analysis = await groqService.analyzeResume(rawText);
+      
+      if (jobId) await jobProgressService.updateStage(jobId, 'ANALYZING', 100);
+
+      // Stage 3: Generate skills embedding for matching
+      if (jobId) await jobProgressService.updateStage(jobId, 'GENERATING_EMBEDDINGS', 0);
+      
       const skillsText = analysis.skills.join(' ');
-      const skillsEmbedding = await openaiService.generateEmbedding(skillsText);
+      const skillsEmbedding = await embeddingService.generateEmbedding(skillsText);
+      
+      if (jobId) await jobProgressService.updateStage(jobId, 'GENERATING_EMBEDDINGS', 100);
 
-      // Create analysis record
+      // Stage 4: Finalize - Create analysis record
+      if (jobId) await jobProgressService.updateStage(jobId, 'FINALIZING', 0);
+      
       await prisma.resumeAnalysis.create({
         data: {
           resumeId,
@@ -151,6 +199,14 @@ export const resumeService = {
       await cache.del(cacheKeys.resume(resumeId));
       await cache.del(cacheKeys.resumeAnalysis(resumeId));
 
+      // Mark job as complete
+      if (jobId) {
+        await jobProgressService.markCompleted(jobId, {
+          atsScore: analysis.atsScore,
+          skillCount: analysis.skills.length,
+        });
+      }
+
       logger.info('Resume processed successfully:', { resumeId, atsScore: analysis.atsScore });
     } catch (error) {
       // Update status to failed
@@ -163,6 +219,11 @@ export const resumeService = {
           processingError: errorMessage,
         },
       });
+
+      // Mark job as failed
+      if (jobId) {
+        await jobProgressService.markFailed(jobId, errorMessage);
+      }
 
       logger.error('Resume processing failed:', { resumeId, error: errorMessage });
       throw error;

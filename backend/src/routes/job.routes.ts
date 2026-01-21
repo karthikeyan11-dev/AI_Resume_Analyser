@@ -12,6 +12,7 @@ const router = Router();
 
 // Public route for browsing active jobs
 router.get('/active', optionalAuth, jobController.getActive);
+router.get('/roles', optionalAuth, jobController.getJobRoles);
 
 // Protected routes
 router.use(authenticate);
@@ -26,3 +27,4 @@ router.delete('/:id', recruiterOnly, jobController.delete);
 router.post('/:id/publish', recruiterOnly, jobController.publish);
 
 export default router;
+

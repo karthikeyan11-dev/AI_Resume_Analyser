@@ -1,11 +1,13 @@
 /**
  * Skill Gap Service
  * Analyzes skill gaps and provides recommendations
+ * 
+ * Updated to use Groq AI for skill gap analysis
  */
 
 import prisma from '../config/database';
 import { cache, cacheKeys } from '../config/redis';
-import { openaiService } from './gemini.service';
+import { groqService } from './groq.service';
 import { NotFoundError } from '../utils/errors';
 import logger from '../utils/logger';
 
@@ -32,8 +34,8 @@ export const skillGapService = {
     const requiredSkills = job.analysis.requiredSkills as string[];
     const preferredSkills = job.analysis.preferredSkills as string[];
 
-    // Get AI analysis
-    const analysis = await openaiService.analyzeSkillGap(
+    // Get AI analysis using Groq
+    const analysis = await groqService.analyzeSkillGap(
       resumeSkills,
       requiredSkills,
       preferredSkills,

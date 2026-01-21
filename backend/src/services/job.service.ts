@@ -5,7 +5,8 @@
 
 import prisma from '../config/database';
 import { cache, cacheKeys } from '../config/redis';
-import { openaiService } from './gemini.service';
+import { groqService } from './groq.service';
+import { embeddingService } from './embedding.service';
 import { NotFoundError, BadRequestError } from '../utils/errors';
 import { calculatePagination } from '../utils/response';
 import { CreateJobInput, UpdateJobInput } from '../utils/validators';
@@ -45,9 +46,9 @@ export const jobService = {
     const job = await prisma.job.findUnique({ where: { id: jobId } });
     if (!job) throw new NotFoundError('Job not found');
 
-    const analysis = await openaiService.analyzeJobDescription(job.description, job.title);
+    const analysis = await groqService.analyzeJobDescription(job.description, job.title);
     const allSkills = [...analysis.requiredSkills, ...analysis.preferredSkills];
-    const skillsEmbedding = await openaiService.generateEmbedding(allSkills.join(' '));
+    const skillsEmbedding = await embeddingService.generateEmbedding(allSkills.join(' '));
 
     await prisma.jobAnalysis.upsert({
       where: { jobId },
@@ -164,6 +165,25 @@ export const jobService = {
     await cache.del(cacheKeys.job(jobId));
     return updated;
   },
+
+  /**
+   * Get distinct job roles/titles for dropdown selection
+   */
+  async getDistinctJobRoles(): Promise<{ title: string; count: number }[]> {
+    const roles = await prisma.job.groupBy({
+      by: ['title'],
+      where: { status: 'ACTIVE' },
+      _count: { title: true },
+      orderBy: { _count: { title: 'desc' } },
+      take: 50,
+    });
+
+    return roles.map(r => ({
+      title: r.title,
+      count: r._count.title,
+    }));
+  },
 };
 
 export default jobService;
+

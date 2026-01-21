@@ -37,6 +37,7 @@ let matchingWorker: Worker | ReturnType<typeof createMockWorker>;
 if (config.features.enableBullMQ) {
   /**
    * Resume Processing Worker
+   * Now passes job ID for real-time progress tracking
    */
   resumeWorker = new Worker(
     'resume-processing',
@@ -44,9 +45,9 @@ if (config.features.enableBullMQ) {
       const { resumeId } = job.data;
       logger.info('Processing resume:', { jobId: job.id, resumeId });
 
-      await job.updateProgress(10);
-      await resumeService.processResume(resumeId);
-      await job.updateProgress(100);
+      // Pass job.id as string for progress tracking
+      // The resumeService.processResume now updates progress in real-time
+      await resumeService.processResume(resumeId, job.id as string);
 
       return { resumeId, status: 'completed' };
     },

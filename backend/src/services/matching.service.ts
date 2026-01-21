@@ -1,11 +1,13 @@
 /**
  * Matching Service
  * Handles resume-job matching with semantic similarity scoring
+ * 
+ * Updated to use Groq AI for match explanations
  */
 
 import prisma from '../config/database';
 import { cache, cacheKeys } from '../config/redis';
-import { openaiService } from './gemini.service';
+import { groqService } from './groq.service';
 import { NotFoundError } from '../utils/errors';
 import { cosineSimilarity, calculateMatchScore, getExperienceLevel } from '../utils/helpers';
 import { calculatePagination } from '../utils/response';
@@ -94,7 +96,7 @@ export const matchingService = {
     );
 
     // Generate match explanation
-    const explanation = await openaiService.generateMatchExplanation(
+    const explanation = await groqService.generateMatchExplanation(
       resume.analysis.summary || '',
       resumeSkills,
       job.title,
@@ -272,6 +274,70 @@ export const matchingService = {
     logger.info('Match status updated:', { matchId, status });
     return match;
   },
+
+  /**
+   * Calculate matches for a resume against all active jobs
+   * Used to populate job matches after resume analysis
+   */
+  async calculateMatchesForResume(
+    resumeId: string,
+    userId: string
+  ): Promise<{ matchCount: number; matches: any[] }> {
+    // Verify resume belongs to user
+    const resume = await prisma.resume.findFirst({
+      where: { id: resumeId, userId },
+      include: { analysis: true },
+    });
+
+    if (!resume || !resume.analysis) {
+      throw new NotFoundError('Resume not found or not analyzed');
+    }
+
+    // Get all active jobs with analysis
+    const activeJobs = await prisma.job.findMany({
+      where: {
+        status: 'ACTIVE',
+        analysis: { isNot: null },
+      },
+      include: { analysis: true },
+      take: 50, // Limit to prevent overload
+    });
+
+    if (activeJobs.length === 0) {
+      return { matchCount: 0, matches: [] };
+    }
+
+    // Calculate matches for each job
+    const matches: any[] = [];
+    
+    for (const job of activeJobs) {
+      try {
+        // Check if match already exists
+        const existingMatch = await prisma.matchScore.findUnique({
+          where: { resumeId_jobId: { resumeId, jobId: job.id } },
+        });
+
+        if (existingMatch) {
+          matches.push(existingMatch);
+          continue;
+        }
+
+        // Calculate new match
+        const match = await this.calculateMatch(resumeId, job.id);
+        matches.push(match);
+      } catch (error) {
+        logger.warn('Failed to calculate match:', { resumeId, jobId: job.id, error });
+      }
+    }
+
+    logger.info('Calculated matches for resume:', { resumeId, matchCount: matches.length });
+
+    return {
+      matchCount: matches.length,
+      matches: matches.sort((a, b) => (b.overallScore || 0) - (a.overallScore || 0)),
+    };
+  },
 };
 
 export default matchingService;
+

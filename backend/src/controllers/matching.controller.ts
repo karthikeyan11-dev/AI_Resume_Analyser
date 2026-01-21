@@ -94,6 +94,21 @@ export const matchingController = {
     const recommendations = await skillGapService.getAggregatedRecommendations(req.user!.id);
     sendSuccess(res, recommendations);
   }),
+
+  /**
+   * POST /matches/calculate-all/:resumeId
+   * Calculate matches for a resume against all active jobs
+   * Useful for populating job matches after resume analysis
+   */
+  calculateAllMatches: asyncHandler(async (req: Request, res: Response) => {
+    const { resumeId } = req.params;
+    
+    // Get all active jobs and calculate matches
+    const result = await matchingService.calculateMatchesForResume(resumeId, req.user!.id);
+    
+    sendSuccess(res, result, `Calculated ${result.matchCount} job matches`);
+  }),
 };
 
 export default matchingController;
+

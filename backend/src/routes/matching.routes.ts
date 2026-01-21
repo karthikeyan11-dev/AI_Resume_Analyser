@@ -16,6 +16,7 @@ router.get('/jobs/:resumeId', candidateOnly, matchingController.getMatchingJobs)
 router.get('/skill-gaps', candidateOnly, matchingController.getUserSkillGaps);
 router.get('/skill-gaps/:resumeId/:jobId', candidateOnly, matchingController.getSkillGap);
 router.get('/recommendations', candidateOnly, matchingController.getRecommendations);
+router.post('/calculate-all/:resumeId', candidateOnly, matchingController.calculateAllMatches);
 
 // Recruiter routes
 router.get('/candidates/:jobId', recruiterOnly, matchingController.getMatchingCandidates);
@@ -25,3 +26,4 @@ router.patch('/:matchId/status', recruiterOnly, matchingController.updateStatus)
 router.post('/:resumeId/:jobId', matchingController.calculateMatch);
 
 export default router;
+

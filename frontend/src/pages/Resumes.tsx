@@ -1,12 +1,14 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { resumeApi } from '../api/client'
 import { useDropzone } from 'react-dropzone'
-import { Upload, FileText, Trash2, RefreshCw, AlertCircle, CheckCircle, Clock, Sparkles } from 'lucide-react'
+import { Upload, FileText, Trash2, RefreshCw, AlertCircle, CheckCircle, Clock, Sparkles, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const Resumes = () => {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [uploading, setUploading] = useState(false)
 
   const { data, isLoading } = useQuery({
@@ -16,6 +18,25 @@ const Resumes = () => {
       return response.data.data
     },
   })
+
+  // Check if any resumes are still processing
+  const hasProcessingResumes = useMemo(() => {
+    if (!data?.length) return false
+    return data.some((resume: any) => 
+      resume.status === 'PENDING' || resume.status === 'PROCESSING'
+    )
+  }, [data])
+
+  // Auto-refresh list when resumes are processing
+  useEffect(() => {
+    if (!hasProcessingResumes) return
+
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['resumes'] })
+    }, 3000) // Poll every 3 seconds
+
+    return () => clearInterval(interval)
+  }, [hasProcessingResumes, queryClient])
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => resumeApi.upload(file),
@@ -68,11 +89,11 @@ const Resumes = () => {
     maxSize: 10 * 1024 * 1024, // 10MB
   })
 
-  const statusConfig: Record<string, { icon: any; color: string; label: string }> = {
-    PENDING: { icon: Clock, color: 'text-warning-500', label: 'Pending' },
-    PROCESSING: { icon: RefreshCw, color: 'text-primary-500 animate-spin', label: 'Processing' },
-    ANALYZED: { icon: CheckCircle, color: 'text-success-500', label: 'Analyzed' },
-    FAILED: { icon: AlertCircle, color: 'text-danger-500', label: 'Failed' },
+  const statusConfig: Record<string, { icon: any; color: string; label: string; bgColor: string }> = {
+    PENDING: { icon: Clock, color: 'text-warning-500', label: 'Pending', bgColor: 'bg-warning-50' },
+    PROCESSING: { icon: Loader2, color: 'text-primary-500', label: 'Processing', bgColor: 'bg-primary-50' },
+    ANALYZED: { icon: CheckCircle, color: 'text-success-500', label: 'Analyzed', bgColor: 'bg-success-50' },
+    FAILED: { icon: AlertCircle, color: 'text-danger-500', label: 'Failed', bgColor: 'bg-danger-50' },
   }
 
   return (
@@ -82,6 +103,12 @@ const Resumes = () => {
           <h1 className="text-3xl font-bold mb-2">My Resumes</h1>
           <p className="text-gray-600">Upload and manage your resumes for AI analysis</p>
         </div>
+        {hasProcessingResumes && (
+          <div className="flex items-center gap-2 text-primary-600 bg-primary-50 px-4 py-2 rounded-full">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm font-medium">Processing...</span>
+          </div>
+        )}
       </div>
 
       {/* Upload Area */}
@@ -131,9 +158,18 @@ const Resumes = () => {
           {data.map((resume: any) => {
             const status = statusConfig[resume.status] || statusConfig.PENDING
             const StatusIcon = status.icon
+            const isProcessing = resume.status === 'PENDING' || resume.status === 'PROCESSING'
 
             return (
-              <div key={resume.id} className="card hover:shadow-lg">
+              <div 
+                key={resume.id} 
+                className={`card hover:shadow-lg transition-all cursor-pointer ${isProcessing ? 'border-l-4 border-l-primary-500' : ''} ${resume.status === 'ANALYZED' ? 'hover:border-primary-300' : ''}`}
+                onClick={() => {
+                  if (resume.status === 'ANALYZED') {
+                    navigate(`/resumes/${resume.id}/report`)
+                  }
+                }}
+              >
                 <div className="flex items-start gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-primary-100 flex items-center justify-center flex-shrink-0">
                     <FileText className="w-7 h-7 text-primary-600" />
@@ -142,8 +178,8 @@ const Resumes = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="font-semibold truncate">{resume.fileName}</h3>
-                      <div className={`flex items-center gap-1 text-sm ${status.color}`}>
-                        <StatusIcon className="w-4 h-4" />
+                      <div className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full ${status.color} ${status.bgColor}`}>
+                        <StatusIcon className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
                         {status.label}
                       </div>
                     </div>
@@ -151,6 +187,22 @@ const Resumes = () => {
                     <p className="text-sm text-gray-500 mb-3">
                       Uploaded {new Date(resume.createdAt).toLocaleDateString()}
                     </p>
+
+                    {/* Processing indicator */}
+                    {isProcessing && (
+                      <div className="mb-3">
+                        <div className="flex items-center gap-2 text-sm text-primary-600 mb-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>AI is analyzing your resume...</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full animate-pulse"
+                            style={{ width: resume.status === 'PROCESSING' ? '60%' : '20%' }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {resume.analysis && (
                       <div className="flex flex-wrap gap-4 text-sm">
@@ -197,8 +249,9 @@ const Resumes = () => {
                       onClick={() => deleteMutation.mutate(resume.id)}
                       className="p-2 text-danger-500 hover:bg-danger-50 rounded-lg transition-colors"
                       title="Delete resume"
+                      disabled={isProcessing}
                     >
-                      <Trash2 className="w-5 h-5" />
+                      <Trash2 className={`w-5 h-5 ${isProcessing ? 'opacity-50' : ''}`} />
                     </button>
                   </div>
                 </div>
@@ -218,3 +271,4 @@ const Resumes = () => {
 }
 
 export default Resumes
+
