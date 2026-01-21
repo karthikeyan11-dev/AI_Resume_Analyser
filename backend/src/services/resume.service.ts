@@ -8,7 +8,7 @@ import path from 'path';
 import pdf from 'pdf-parse';
 import prisma from '../config/database';
 import { cache, cacheKeys } from '../config/redis';
-import { openaiService } from './openai.service';
+import { openaiService } from './gemini.service';
 import { NotFoundError, FileProcessingError } from '../utils/errors';
 import { calculatePagination } from '../utils/response';
 import logger from '../utils/logger';

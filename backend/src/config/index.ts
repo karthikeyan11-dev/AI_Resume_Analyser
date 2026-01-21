@@ -51,11 +51,11 @@ export const config = {
     refreshExpiry: getEnvVar('JWT_REFRESH_EXPIRY', '7d'),
   },
   
-  // OpenAI Configuration
-  openai: {
-    apiKey: getEnvVar('OPENAI_API_KEY', ''),
-    model: getEnvVar('OPENAI_MODEL', 'gpt-4-turbo-preview'),
-    embeddingModel: getEnvVar('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+  // Google Gemini Configuration
+  gemini: {
+    apiKey: getEnvVar('GEMINI_API_KEY', ''),
+    model: getEnvVar('GEMINI_MODEL', 'gemini-1.5-pro'),
+    embeddingModel: getEnvVar('GEMINI_EMBEDDING_MODEL', 'text-embedding-004'),
   },
   
   // File Upload Configuration
@@ -93,8 +93,8 @@ if (config.env === 'production') {
   if (config.jwt.accessSecret === 'dev-access-secret-change-me') {
     throw new Error('JWT secrets must be changed in production!');
   }
-  if (!config.openai.apiKey) {
-    console.warn('Warning: OpenAI API key not configured. AI features will be disabled.');
+  if (!config.gemini.apiKey) {
+    console.warn('Warning: Gemini API key not configured. AI features will be disabled.');
   }
 }
 

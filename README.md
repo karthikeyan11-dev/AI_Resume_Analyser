@@ -18,7 +18,7 @@
 
 This is a **production-grade, interview-ready** full-stack application that leverages AI to:
 
-- 📄 **Analyze resumes** with PDF parsing and GPT-4 powered extraction
+- 📄 **Analyze resumes** with PDF parsing and Gemini 1.5 Pro powered extraction
 - 🎯 **Match candidates to jobs** using semantic embeddings and cosine similarity
 - 📊 **Generate ATS compatibility scores** with actionable improvement suggestions
 - 🔍 **Identify skill gaps** and recommend learning paths
@@ -48,7 +48,7 @@ This is a **production-grade, interview-ready** full-stack application that leve
 - **Role-Based Access Control**: Candidate, Recruiter, and Admin roles
 - **Background Processing**: BullMQ for async AI processing
 - **Redis Caching**: Improved performance for frequently accessed data
-- **Semantic Search**: OpenAI embeddings for intelligent matching
+- **Semantic Search**: Google Gemini embeddings for intelligent matching
 - **RESTful API**: Well-documented API with consistent responses
 
 ---
@@ -77,7 +77,7 @@ This is a **production-grade, interview-ready** full-stack application that leve
 | **PostgreSQL** | Database |
 | **Redis** | Caching |
 | **BullMQ** | Job Queue |
-| **OpenAI API** | AI Processing |
+| **Google Gemini API** | AI Processing |
 | **JWT** | Authentication |
 | **Zod** | Validation |
 
@@ -98,7 +98,7 @@ This is a **production-grade, interview-ready** full-stack application that leve
 - Node.js >= 18.0.0
 - PostgreSQL 14+
 - Redis 7+
-- OpenAI API Key
+- Google Gemini API Key
 - npm or yarn
 
 ### Local Development Setup
@@ -124,7 +124,7 @@ cp .env.example .env
 
 # Edit .env with your configuration:
 # - DATABASE_URL: Your PostgreSQL connection string
-# - OPENAI_API_KEY: Your OpenAI API key
+# - GEMINI_API_KEY: Your Google Gemini API key
 # - JWT secrets: Generate secure random strings
 
 # Generate Prisma client
@@ -277,7 +277,7 @@ All API responses follow this structure:
          ┌────────────────────┼────────────────────┐
          ▼                    ▼                    ▼
 ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-│  PostgreSQL │      │    Redis    │      │  OpenAI API │
+│  PostgreSQL │      │    Redis    │      │ Gemini API  │
 │  (Primary)  │      │  (Cache)    │      │    (AI)     │
 └─────────────┘      └─────────────┘      └─────────────┘
          ▲                    ▲
@@ -360,7 +360,7 @@ src/
 ### System Design Questions
 
 **Q: How does the matching algorithm work?**
-> The matching system uses OpenAI's text-embedding-3-small model to generate vector embeddings for both resume skills and job requirements. We then calculate cosine similarity between these vectors for semantic matching. The final score is a weighted combination of skill match (40%), experience (25%), education (15%), and keyword overlap (20%).
+> The matching system uses Google Gemini's text-embedding-004 model to generate vector embeddings for both resume skills and job requirements. We then calculate cosine similarity between these vectors for semantic matching. The final score is a weighted combination of skill match (40%), experience (25%), education (15%), and keyword overlap (20%).
 
 **Q: How do you handle scalability?**
 > - **Async Processing**: AI operations are offloaded to BullMQ workers to prevent blocking HTTP requests
@@ -375,7 +375,7 @@ src/
 ### Backend Engineering
 
 **Q: Explain the AI integration architecture.**
-> - System prompts ensure consistent JSON output from GPT-4
+> - System prompts ensure consistent JSON output from Gemini 1.5 Pro
 > - Response validation with fallback handling
 > - Retry logic with exponential backoff for API failures
 > - Structured extraction for skills, experience, and recommendations
@@ -460,9 +460,9 @@ JWT_REFRESH_SECRET=your-refresh-secret
 JWT_ACCESS_EXPIRY=15m
 JWT_REFRESH_EXPIRY=7d
 
-# OpenAI
-OPENAI_API_KEY=sk-your-api-key
-OPENAI_MODEL=gpt-4-turbo-preview
+# Google Gemini
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-1.5-pro
 
 # CORS
 FRONTEND_URL=http://localhost:3000
@@ -491,7 +491,7 @@ This project is licensed under the MIT License.
 
 ## 🙏 Acknowledgments
 
-- [OpenAI](https://openai.com) for GPT-4 and embeddings API
+- [Google Gemini](https://ai.google.dev) for Gemini 1.5 Pro and embeddings API
 - [Prisma](https://prisma.io) for the excellent ORM
 - [Tailwind CSS](https://tailwindcss.com) for utility-first styling
 - [Lucide](https://lucide.dev) for beautiful icons

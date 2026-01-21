@@ -5,7 +5,7 @@
 
 import prisma from '../config/database';
 import { cache, cacheKeys } from '../config/redis';
-import { openaiService } from './openai.service';
+import { openaiService } from './gemini.service';
 import { NotFoundError, BadRequestError } from '../utils/errors';
 import { calculatePagination } from '../utils/response';
 import { CreateJobInput, UpdateJobInput } from '../utils/validators';

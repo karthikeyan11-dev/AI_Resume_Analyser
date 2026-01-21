@@ -39,6 +39,12 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>
 }
 
+// Role-based redirect for index route
+const RoleBasedRedirect = () => {
+  const { user } = useAuthStore()
+  return <Navigate to={user?.role === 'RECRUITER' ? '/recruiter' : '/dashboard'} replace />
+}
+
 function App() {
   const { isAuthenticated } = useAuthStore()
 
@@ -56,6 +62,9 @@ function App() {
       
       {/* Protected routes */}
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+        {/* Index route - redirect based on role */}
+        <Route index element={<RoleBasedRedirect />} />
+        
         {/* Candidate routes */}
         <Route path="dashboard" element={
           <ProtectedRoute allowedRoles={['CANDIDATE']}>

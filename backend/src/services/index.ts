@@ -4,7 +4,7 @@
  */
 
 export { authService } from './auth.service';
-export { openaiService } from './openai.service';
+export { geminiService, openaiService } from './gemini.service';
 export { resumeService } from './resume.service';
 export { jobService } from './job.service';
 export { matchingService } from './matching.service';

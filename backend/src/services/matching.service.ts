@@ -5,7 +5,7 @@
 
 import prisma from '../config/database';
 import { cache, cacheKeys } from '../config/redis';
-import { openaiService } from './openai.service';
+import { openaiService } from './gemini.service';
 import { NotFoundError } from '../utils/errors';
 import { cosineSimilarity, calculateMatchScore, getExperienceLevel } from '../utils/helpers';
 import { calculatePagination } from '../utils/response';
